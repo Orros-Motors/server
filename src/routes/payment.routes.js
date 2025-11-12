@@ -99,17 +99,15 @@ router.post("/verify-payment", async (req, res) => {
   try {
     const { email, reference } = req.body;
 
-    // 1. Validate input
+    // 1️⃣ Validate input
     if (!reference || !email) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Missing required parameters: email or reference",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Missing required parameters: email or reference",
+      });
     }
 
-    // 2. Verify payment with Paystack
+    // 2️⃣ Verify payment with Paystack
     const verifyResponse = await axios.get(
       `${PAYSTACK_BASE_URL}/transaction/verify/${reference}`,
       { headers: { Authorization: `Bearer ${PAYSTACK_SECRET_KEY}` } }
@@ -128,7 +126,7 @@ router.post("/verify-payment", async (req, res) => {
         .json({ success: false, message: "Payment failed" });
     }
 
-    // 3. Extract seatIds from metadata
+    // 3️⃣ Extract seatIds
     const seatIds = paymentData?.metadata?.seatIds;
     if (!seatIds || !Array.isArray(seatIds) || seatIds.length === 0) {
       return res
@@ -138,7 +136,7 @@ router.post("/verify-payment", async (req, res) => {
 
     console.log("Verifying payment for seatIds:", seatIds);
 
-    // 4. Find user
+    // 4️⃣ Find user
     const user = await User.findOne({ email });
     if (!user) {
       return res
@@ -146,7 +144,7 @@ router.post("/verify-payment", async (req, res) => {
         .json({ success: false, message: "User not found" });
     }
 
-    // 5. Find trip
+    // 5️⃣ Find trip
     const tripId = paymentData.metadata.tripId;
     const trip = await Trip.findById(tripId);
     if (!trip) {
@@ -155,24 +153,19 @@ router.post("/verify-payment", async (req, res) => {
         .json({ success: false, message: "Trip not found" });
     }
 
-    // 6. Process each seat: validate, check duplicates, ensure position
+    // 6️⃣ Process each seat
     const bookings = [];
     const processedSeatIds = new Set();
 
     for (const seatId of seatIds) {
-      // Prevent duplicate seatId in same request
       if (processedSeatIds.has(seatId)) {
         throw new Error(`Duplicate seatId ${seatId} in request`);
       }
       processedSeatIds.add(seatId);
 
-      // --- Find seat ---
       const seat = await Seat.findById(seatId);
-      if (!seat) {
-        throw new Error(`Seat not found: ${seatId}`);
-      }
+      if (!seat) throw new Error(`Seat not found: ${seatId}`);
 
-      // --- Check if seat already has a booking ---
       const existingBooking = await Booking.findOne({ seatId });
       if (existingBooking) {
         throw new Error(
@@ -182,27 +175,21 @@ router.post("/verify-payment", async (req, res) => {
         );
       }
 
-      // --- Enforce: seat must have a position ---
       if (!seat.position) {
-        throw new Error(
-          `Seat ${seatId} is missing a position. Cannot create booking.`
-        );
+        throw new Error(`Seat ${seatId} has no position defined`);
       }
 
- 
       if (seat.isPaid || seat.isBooked || seat.isBooking) {
-        throw new Error(
-          `Seat ${seat.position} is no longer available (already reserved or paid)`
-        );
+        throw new Error(`Seat ${seat.position} is no longer available`);
       }
 
-      // --- Generate unique booking code ---
+      // Generate booking code
       const bookingCode = Math.random()
         .toString(36)
         .substring(2, 10)
         .toUpperCase();
 
-      // --- Update seat atomically ---
+      // Update seat
       const updatedSeat = await Seat.findByIdAndUpdate(
         seatId,
         {
@@ -217,13 +204,10 @@ router.post("/verify-payment", async (req, res) => {
         { new: true }
       );
 
-      if (!updatedSeat) {
-        throw new Error(`Failed to update seat ${seatId}`);
-      }
+      if (!updatedSeat) throw new Error(`Failed to update seat ${seatId}`);
 
-      // --- Create booking (only if all checks pass) ---
+      // Create booking record
       const amountPerSeat = paymentData.amount / 100 / seatIds.length;
-
       const booking = await Booking.create({
         bookingCode,
         userId: user._id,
@@ -231,7 +215,7 @@ router.post("/verify-payment", async (req, res) => {
         amount: amountPerSeat,
         tripId,
         paymentReference: reference,
-        position: seat.position, // Guaranteed to exist
+        position: seat.position,
       });
 
       bookings.push({
@@ -241,14 +225,14 @@ router.post("/verify-payment", async (req, res) => {
       });
     }
 
-    // 7. Update payment record
+    // 7️⃣ Update payment record
     await Payment.findOneAndUpdate(
       { reference },
       { status: "success", metadata: paymentData, seatIds },
       { new: true, upsert: true }
     );
 
-    // 8. Prepare email
+    // 8️⃣ Prepare email HTML
     const totalAmount = paymentData.amount / 100;
     const departureDate = new Date(trip.takeoff.date).toLocaleDateString(
       "en-GB",
@@ -265,141 +249,91 @@ router.post("/verify-payment", async (req, res) => {
       <html>
       <head>
         <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Booking Confirmed - ${appName}</title>
         <style>
           body { font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0; }
           .container { max-width: 600px; margin: 20px auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
           .header { background-color: ${primaryBlue}; padding: 30px 20px; text-align: center; color: white; }
-          .header h1 { margin: 0; font-size: 28px; font-weight: bold; }
           .content { padding: 30px; color: ${textGray}; }
-          .greeting { font-size: 18px; margin-bottom: 20px; }
-          .section { margin-bottom: 25px; }
-          .section h3 { color: ${primaryBlue}; margin: 0 0 15px 0; font-size: 20px; }
           table { width: 100%; border-collapse: collapse; margin: 15px 0; }
           th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid ${borderGray}; }
           th { background-color: ${lightGray}; font-weight: bold; color: #333; }
-          .total-row { font-weight: bold; font-size: 18px; background-color: ${lightGray}; }
-          .highlight { background-color: #e8f0ff; }
-          .footer { background-color: ${lightGray}; padding: 25px; text-align: center; color: #777; font-size: 14px; }
-          .btn { display: inline-block; background-color: ${primaryBlue}; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 20px 0; }
-          @media (max-width: 600px) {
-            .container { margin: 10px; border-radius: 8px; }
-            .header { padding: 20px; }
-            .header h1 { font-size: 24px; }
-            .content { padding: 20px; }
-          }
+          .total-row { font-weight: bold; background-color: ${lightGray}; }
         </style>
       </head>
       <body>
         <div class="container">
-          <div class="header">
-            <h1>Booking Confirmed!</h1>
-          </div>
+          <div class="header"><h1>Booking Confirmed!</h1></div>
           <div class="content">
-            <p class="greeting">Hi ${user.name || "Valued Customer"},</p>
-            <p>Thank you for choosing <strong>${appName}</strong>. Your payment has been successful and your seats are now reserved.</p>
-
-            <div class="section">
-              <h3>Trip Details</h3>
-              <table>
-                <tr><th>Trip Name</th><td>${trip.tripName}</td></tr>
-                <tr><th>From</th><td>${trip.pickup.city} → ${
+            <p>Hi ${user.name || "Valued Customer"},</p>
+            <p>Thank you for choosing <strong>${appName}</strong>. Your payment has been confirmed and your seat(s) have been reserved.</p>
+            <h3>Trip Details</h3>
+            <table>
+              <tr><th>Trip</th><td>${trip.tripName}</td></tr>
+              <tr><th>From</th><td>${trip.pickup.city} → ${
       trip.pickup.location
     }</td></tr>
-                <tr><th>To</th><td>${trip.dropoff.city} → ${
+              <tr><th>To</th><td>${trip.dropoff.city} → ${
       trip.dropoff.location
     }</td></tr>
-                <tr><th>Departure</th><td>${
-                  trip.takeoff.time
-                } • ${departureDate}</td></tr>
-                <tr><th>Arrival</th><td>${trip.arrivalTime} (next day)</td></tr>
-                <tr><th>Bus</th><td>${trip.bus}</td></tr>
-              </table>
-            </div>
-
-            <div class="section">
-              <h3>Your Seats & Booking Codes</h3>
-              <table>
-                <thead>
+              <tr><th>Departure</th><td>${
+                trip.takeoff.time
+              } • ${departureDate}</td></tr>
+            </table>
+            <h3>Seats</h3>
+            <table>
+              <thead><tr><th>Seat</th><th>Code</th><th>Amount</th></tr></thead>
+              <tbody>
+                ${bookings
+                  .map(
+                    (b) => `
                   <tr>
-                    <th>Seat No.</th>
-                    <th>Booking Code</th>
-                    <th>Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${bookings
-                    .map(
-                      (b) => `
-                    <tr class="highlight">
-                      <td><strong>${b.seatPosition}</strong></td>
-                      <td><strong style="font-size: 16px; letter-spacing: 1px;">${
-                        b.bookingCode
-                      }</strong></td>
-                      <td>₦${b.amount.toLocaleString()}</td>
-                    </tr>`
-                    )
-                    .join("")}
-                  <tr class="total-row">
-                    <td colspan="2"><strong>Total Paid</strong></td>
-                    <td><strong>₦${totalAmount.toLocaleString()}</strong></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <div class="section">
-              <p><strong>Payment Reference:</strong> ${reference}</p>
-              <p><strong>Transaction Time:</strong> ${new Date().toLocaleString()}</p>
-            </div>
-
-            <div style="text-align: center;">
-              <a href="https://orromotors.com/my-bookings" class="btn">View All Bookings</a>
-            </div>
-
-            <div class="section">
-              <p><strong>Important:</strong> Please arrive 30 minutes before departure. Show your booking code at the terminal.</p>
-            </div>
-          </div>
-
-          <div class="footer">
-            <p><strong>${appName}</strong> • Safe. Reliable. Comfortable.</p>
-            <p>Need help? Reply to this email or call <strong>0800-ORRO-NOW</strong></p>
-            <p>&copy; 2025 ${appName}. All rights reserved.</p>
+                    <td>${b.seatPosition}</td>
+                    <td><strong>${b.bookingCode}</strong></td>
+                    <td>₦${b.amount.toLocaleString()}</td>
+                  </tr>`
+                  )
+                  .join("")}
+                <tr class="total-row"><td colspan="2">Total Paid</td><td>₦${totalAmount.toLocaleString()}</td></tr>
+              </tbody>
+            </table>
+            <p>Payment Reference: ${reference}</p>
+            <p>Transaction Time: ${new Date().toLocaleString()}</p>
+            <p>Please arrive 30 minutes before departure and show your booking code at the terminal.</p>
           </div>
         </div>
       </body>
       </html>
     `;
 
-    // 9. Send confirmation email
-    await transporter.sendMail({
-      from: `"${appName}" <${process.env.EMAIL_USER}>`,
-      to: user.email,
-      subject: `Booking Confirmed! ${bookings.length} Seat${
-        bookings.length > 1 ? "s" : ""
-      } Reserved`,
-      html: emailHTML,
-    });
+    // 9️⃣ Attempt to send email (non-blocking)
+    try {
+      await transporter.sendMail({
+        from: `"${appName}" <${process.env.EMAIL_USER}>`,
+        to: user.email,
+        subject: `Booking Confirmed! ${bookings.length} Seat${
+          bookings.length > 1 ? "s" : ""
+        } Reserved`,
+        html: emailHTML,
+      });
+      console.log(`✅ Email sent to ${user.email}`);
+    } catch (emailErr) {
+      console.error("⚠️ Email sending failed:", emailErr.message);
+      // Don't throw — still proceed
+    }
 
-    console.log(
-      `Email sent to ${user.email} with ${bookings.length} booking(s)`
-    );
-
-    // 10. Success response
-    res.status(200).json({
+    // 🔟 Final success response
+    return res.status(200).json({
       success: true,
       message:
-        "Payment verified, bookings created, and confirmation email sent",
+        "Payment verified, bookings created successfully (email attempt made)",
       bookings,
       trip,
-      emailSent: true,
     });
   } catch (error) {
-    console.error("ERROR IN VERIFY PAYMENT:", error.message || error);
+    console.error("❌ ERROR IN VERIFY PAYMENT:", error.message || error);
 
-    // Optional: Mark payment as failed if not already done
+    // Mark payment as failed if something goes wrong
     try {
       await Payment.findOneAndUpdate(
         { reference: req.body.reference },
@@ -410,7 +344,7 @@ router.post("/verify-payment", async (req, res) => {
       console.error("Failed to mark payment as failed:", updateErr);
     }
 
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || "Payment verification failed",
     });
