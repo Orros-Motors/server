@@ -2,14 +2,14 @@ const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const bodyParser = require("body-parser");
-const { connectDB } = require("./config/db");
-const userRoutes = require("./routes/users.routes");
-const tripRoutes = require("./routes/trip.routes");
-const adminRoutes = require("./routes/admin.routes");
-const seatRoutes = require("./routes/seat.routes");
-const managementRoutes = require("./routes/analytics.router");
-const paymentRoutes = require("./routes/payment.routes");
-const citiesRoutes = require('./routes/city.routes')
+const { connectDB } = require("./src/config/db");
+const userRoutes = require("./src/routes/users.routes");
+const tripRoutes = require("./src/routes/trip.routes");
+const adminRoutes = require("./src/routes/admin.routes");
+const seatRoutes = require("./src/routes/seat.routes");
+const managementRoutes = require("./src/routes/analytics.router");
+const paymentRoutes = require("./src/routes/payment.routes");
+const citiesRoutes = require('./src/routes/city.routes')
 
 require("dotenv").config();
 dotenv.config();
