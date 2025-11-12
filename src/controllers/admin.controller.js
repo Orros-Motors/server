@@ -47,7 +47,7 @@ exports.loginAdmin = async (req, res) => {
     const otp = generateOTP();
     await AdminOtp.deleteMany({ email });
     await AdminOtp.create({ email, otp });
-    await sendOTP(email, otp);
+    //await sendOTP(email, otp);
 
     res.status(200).json({
       success: true,
