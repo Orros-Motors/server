@@ -5,7 +5,7 @@ const generateOTP = () => {
 };
 
 const buildHtmlEmail = ({
-  appName = "Orros Motors",
+  appName = "Orro Motors",
   otp,
   expiryMinutes = 10,
 }) => {
@@ -91,15 +91,15 @@ const sendOTP = async (recipientEmail, otp, options = {}) => {
     });
 
     const html = buildHtmlEmail({
-      appName: options.appName || "Orros Motors",
+      appName: options.appName || "Orro Motors",
       otp,
       expiryMinutes: options.expiryMinutes ?? 10,
     });
 
     const mailOptions = {
-      from: `"Orros Motors" <${user}>`,
+      from: `"Orro Motors" <${user}>`,
       to: recipientEmail,
-      subject: `${options.appName || "Orros Motors"} — Your verification code`,
+      subject: `${options.appName || "Orro Motors"} — Your verification code`,
       text: `Your verification code is ${otp}. It expires in ${
         options.expiryMinutes ?? 10
       } minutes.`,

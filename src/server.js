@@ -7,8 +7,11 @@ const userRoutes = require("./routes/users.routes");
 const tripRoutes = require("./routes/trip.routes");
 const adminRoutes = require("./routes/admin.routes");
 const seatRoutes = require("./routes/seat.routes");
-const managementRoutes = require('./routes/analytics.router')
-require('dotenv').config();
+const managementRoutes = require("./routes/analytics.router");
+const paymentRoutes = require("./routes/payment.routes");
+const citiesRoutes = require('./routes/city.routes')
+
+require("dotenv").config();
 dotenv.config();
 
 const app = express();
@@ -24,6 +27,8 @@ app.use("/api/trips", tripRoutes);
 app.use("/api/admins", adminRoutes);
 app.use("/api/seats", seatRoutes);
 app.use("/api/admin-management", managementRoutes);
+app.use("/api/pay", paymentRoutes);
+app.use("/api/cities", citiesRoutes);
 
 app.get("/", (req, res) => {
   res.send("🚀 API is running...");

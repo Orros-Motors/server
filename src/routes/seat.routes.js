@@ -6,9 +6,12 @@ const { verifyUserToken } = require("../utils/verify_token");
 router.post("/book", verifyUserToken, seatController.bookSeat);
 router.post("/confirm", verifyUserToken, seatController.confirmBooking);
 router.post("/pay", verifyUserToken, seatController.markPaid);
-router.get(
-  "/available",
-  seatController.getAvailableSeats
+router.get("/available", seatController.getAvailableSeats);
+router.post(
+  "/check-seat-status",
+  verifyUserToken,
+  seatController.checkSeatsStatus
 );
-
+router.post("/is-booking", seatController.toggleMultipleBooking);
+//checkSeatsStatus
 module.exports = router;

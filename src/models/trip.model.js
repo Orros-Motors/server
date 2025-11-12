@@ -20,23 +20,49 @@ const tripSchema = new mongoose.Schema(
     admin: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Admin",
-      required: true,
+      required: false,
     },
     status: {
       type: String,
       enum: ["scheduled", "ongoing", "completed", "cancelled"],
       default: "scheduled",
     },
-    destination: {
-      type: String,
-      required: true,
-      trim: true,
+
+    dropoff: {
+      city: {
+        type: String,
+        required: true,
+        trim: true,
+      },
+      location: {
+        type: String,
+        required: true,
+        trim: true,
+      },
     },
-    takeoffLocation: {
-      type: String,
-      required: true,
-      trim: true,
+
+    pickup: {
+      city: {
+        type: String,
+        required: true,
+        trim: true,
+      },
+      location: {
+        type: String,
+        required: true,
+        trim: true,
+      },
     },
+
+    departureTime: {
+      type: String, // e.g., "08:30 AM"
+      required: true,
+    },
+    arrivalTime: {
+      type: String, // e.g., "04:15 PM"
+      required: true,
+    },
+
     takeoff: {
       date: {
         type: Date,
@@ -54,7 +80,11 @@ const tripSchema = new mongoose.Schema(
       time: {
         type: String,
       },
+      rescheduled: {
+        type: Boolean,
+      },
     },
+
     seatCount: {
       type: Number,
       required: false,
@@ -66,6 +96,18 @@ const tripSchema = new mongoose.Schema(
         ref: "Seat",
       },
     ],
+
+    // ✅ Add price field
+    price: {
+      type: Number,
+      required: false,
+      min: 0,
+      default: 0,
+    },
+
+    vehicleType: {
+      type: String,
+    },
   },
   { timestamps: true }
 );
