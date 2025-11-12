@@ -307,20 +307,20 @@ router.post("/verify-payment", async (req, res) => {
     `;
 
     // 9️⃣ Attempt to send email (non-blocking)
-    try {
-      await transporter.sendMail({
-        from: `"${appName}" <${process.env.EMAIL_USER}>`,
-        to: user.email,
-        subject: `Booking Confirmed! ${bookings.length} Seat${
-          bookings.length > 1 ? "s" : ""
-        } Reserved`,
-        html: emailHTML,
-      });
-      console.log(`✅ Email sent to ${user.email}`);
-    } catch (emailErr) {
-      console.error("⚠️ Email sending failed:", emailErr.message);
-      // Don't throw — still proceed
-    }
+    // try {
+    //   await transporter.sendMail({
+    //     from: `"${appName}" <${process.env.EMAIL_USER}>`,
+    //     to: user.email,
+    //     subject: `Booking Confirmed! ${bookings.length} Seat${
+    //       bookings.length > 1 ? "s" : ""
+    //     } Reserved`,
+    //     html: emailHTML,
+    //   });
+    //   console.log(`✅ Email sent to ${user.email}`);
+    // } catch (emailErr) {
+    //   console.error("⚠️ Email sending failed:", emailErr.message);
+    //   // Don't throw — still proceed
+    // }
 
     // 🔟 Final success response
     return res.status(200).json({
