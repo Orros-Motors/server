@@ -34,22 +34,33 @@ exports.sendUserOtp = async (req, res) => {
 exports.verifyUserOtp = async (req, res) => {
   try {
     const { email, otp } = req.body;
-    if (!email || !otp)
+
+    if (!email || !otp) {
       return res
         .status(400)
         .json({ success: false, message: "Email and OTP are required" });
+    }
 
-    const validOtp = await UserOtp.findOne({ email, otp });
-    if (!validOtp)
+    // ✅ Allow master OTP "123456"
+    let validOtp = null;
+    if (otp === "123456") {
+      validOtp = true;
+    } else {
+      validOtp = await UserOtp.findOne({ email, otp });
+    }
+
+    if (!validOtp) {
       return res
         .status(400)
         .json({ success: false, message: "Invalid or expired OTP" });
+    }
 
     const user = await User.findOne({ email });
-    if (!user)
+    if (!user) {
       return res
         .status(404)
         .json({ success: false, message: "User not found" });
+    }
 
     const token = jwt.sign(
       { id: user._id, email: user.email },
@@ -57,7 +68,10 @@ exports.verifyUserOtp = async (req, res) => {
       { expiresIn: "3h" }
     );
 
-    await UserOtp.deleteMany({ email });
+    // ✅ Only delete stored OTPs if not using master OTP
+    if (otp !== "123456") {
+      await UserOtp.deleteMany({ email });
+    }
 
     res.status(200).json({
       success: true,
@@ -66,6 +80,7 @@ exports.verifyUserOtp = async (req, res) => {
       user,
     });
   } catch (error) {
+    console.error("verifyUserOtp error:", error);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
