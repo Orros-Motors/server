@@ -20,7 +20,7 @@ exports.sendUserOtp = async (req, res) => {
     await UserOtp.deleteMany({ email });
     await UserOtp.create({ email, otp });
 
-    await sendOTP(email, otp);
+    //await sendOTP(email, otp);
 
     res.status(200).json({
       success: true,
