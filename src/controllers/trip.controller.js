@@ -35,7 +35,7 @@ exports.createTrip = async (req, res) => {
       vehicleType,
     });
 
-    // Validate required fields
+
     if (
       !tripName ||
       !bus ||

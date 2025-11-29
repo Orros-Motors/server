@@ -3,6 +3,7 @@ const { AdminOtp } = require("../models/adminOtp.model");
 const jwt = require("jsonwebtoken");
 const { sendOTP, generateOTP } = require("../utils/generate_and_send_otp");
 const { Trip } = require("../models/trip.model");
+const { sendSMS } = require("../utils/sendSMS");
 
 exports.registerAdmin = async (req, res) => {
   try {
@@ -32,71 +33,119 @@ exports.registerAdmin = async (req, res) => {
 
 exports.loginAdmin = async (req, res) => {
   try {
-    const { email } = req.body;
-    if (!email)
-      return res
-        .status(400)
-        .json({ success: false, message: "Email is required" });
+    console.log("➡️ loginAdmin triggered");
+    console.log("📥 Request body:", req.body);
 
-    const admin = await Admin.findOne({ email });
-    if (!admin)
-      return res
-        .status(404)
-        .json({ success: false, message: "Admin not found" });
+    const { email, phone } = req.body;
 
+    if (!email && !phone) {
+      return res.status(400).json({
+        success: false,
+        message: "Email or Phone number is required",
+      });
+    }
+
+    // Find Admin by email or phone
+    const admin = await Admin.findOne({
+      $or: [{ email }, { phone: phone }],
+    });
+
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        message: "Admin not found",
+      });
+    }
+
+    const to = admin.phone;
+    if (!to) {
+      return res.status(400).json({
+        success: false,
+        message: "Admin does not have a valid phone number",
+      });
+    }
+
+    // Generate OTP
     const otp = generateOTP();
-    await AdminOtp.deleteMany({ email });
-    await AdminOtp.create({ email, otp });
-    //await sendOTP(email, otp);
 
-    res.status(200).json({
+    // Clear old OTPs
+    await AdminOtp.deleteMany({
+      email: admin.email,
+    });
+
+    // Save new OTP
+    await AdminOtp.create({
+      email: admin.email,
+      otp,
+    });
+    const sms = `Hello, here is your ORRO Motors admin OTP: ${otp}`;
+    // Send OTP via SMS
+    await sendSMS(to, sms);
+
+    return res.status(200).json({
       success: true,
-      message: "OTP sent to admin email successfully",
+      message: "OTP sent successfully",
     });
   } catch (error) {
-    console.error("❌ Error sending OTP:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    console.error("❌ Error in loginAdmin:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
   }
 };
 
+// ========================= VERIFY OTP =========================
 
 exports.verifyOtp = async (req, res) => {
   try {
-    const { email, otp } = req.body;
-    if (!email || !otp) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Email and OTP are required" });
+    const { email, phone, otp } = req.body;
+
+    if (!otp || (!email && !phone)) {
+      return res.status(400).json({
+        success: false,
+        message: "OTP and Email/Phone are required",
+      });
     }
 
-    let validOtp = null;
-    if (otp === "123456") {
-      validOtp = true;
-    } else {
-      validOtp = await AdminOtp.findOne({ email, otp });
+    // Find admin by email or phone
+    const admin = await Admin.findOne({
+      $or: [{ email }, { phone: phone }],
+    });
+
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        message: "Admin not found",
+      });
     }
+
+    // Check OTP
+    let validOtp =
+      otp === "123456"
+        ? true
+        : await AdminOtp.findOne({
+            email: admin.email,
+            otp,
+          });
 
     if (!validOtp) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid or expired OTP" });
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired OTP",
+      });
     }
 
-    const admin = await Admin.findOne({ email });
-    if (!admin) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Admin not found" });
-    }
-
+    // Generate Token
     const token = jwt.sign(
       { id: admin._id, email: admin.email },
       process.env.JWT_SECRET,
       { expiresIn: "2h" }
     );
 
+    // Delete OTP unless master code
     if (otp !== "123456") {
-      await AdminOtp.deleteMany({ email });
+      await AdminOtp.deleteMany({ email: admin.email });
     }
 
     return res.status(200).json({
@@ -107,44 +156,59 @@ exports.verifyOtp = async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Error verifying OTP:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
   }
 };
+
+// ========================= RESEND OTP =========================
 
 exports.resendOtp = async (req, res) => {
   try {
-    const { email } = req.body;
-    if (!email)
-      return res
-        .status(400)
-        .json({ success: false, message: "Email is required" });
+    const { email, phone } = req.body;
 
-    const admin = await Admin.findOne({ email });
-    if (!admin)
-      return res
-        .status(404)
-        .json({ success: false, message: "Admin not found" });
+    if (!email && !phone) {
+      return res.status(400).json({
+        success: false,
+        message: "Email or Phone number is required",
+      });
+    }
 
-    // Generate new OTP
+    const admin = await Admin.findOne({
+      $or: [{ email }, { phone: phone }],
+    });
+
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        message: "Admin not found",
+      });
+    }
+
     const otp = generateOTP();
 
-    // Remove old OTPs and create new one
-    await AdminOtp.deleteMany({ email });
-    await AdminOtp.create({ email, otp });
+    await AdminOtp.deleteMany({ email: admin.email });
 
-    // Send the OTP
-    await sendOTP(email, otp);
+    await AdminOtp.create({ email: admin.email, otp });
 
-    res.status(200).json({
+    const sms = `Hello, here is your ORRO Motors admin OTP: ${otp}`;
+
+    await sendSMS(admin.phone, sms);
+
+    return res.status(200).json({
       success: true,
-      message: "OTP resent to admin email successfully",
+      message: "OTP resent successfully",
     });
   } catch (error) {
     console.error("❌ Error resending OTP:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
   }
 };
-
 exports.getAllAdmins = async (req, res) => {
   try {
     const admins = await Admin.find();
